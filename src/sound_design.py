@@ -634,18 +634,22 @@ def master():
     target = -16.0
     mix *= 10 ** ((target - loud) / 20.0)
     print(f"programme loudness: {loud:.2f} LUFS -> {target}")
-    ceiling = 10 ** (-1.2 / 20)
-    peak = np.abs(mix).max(axis=0)
-    look = int(0.004 * SR)
-    need = np.maximum(peak / ceiling, 1.0)
-    # running max over the look-ahead window, then smooth release
+    # true-peak limiter: detect on a 4x oversampled signal, ceiling -1 dBTP
     from scipy.ndimage import maximum_filter1d
-    need = maximum_filter1d(need, size=2 * look + 1)
-    g = 1.0 / need
-    g = signal.lfilter([0.002], [1, -0.998], g - 1.0) + 1.0
-    g = np.minimum(g, 1.0 / maximum_filter1d(np.maximum(peak / ceiling, 1.0), size=2 * look + 1))
-    mix *= g
-    mix = np.clip(mix, -ceiling, ceiling)
+    ceiling = 10 ** (-1.0 / 20)
+    look = int(0.004 * SR)
+    for _ in range(3):
+        up = signal.resample_poly(mix, 4, 1, axis=1)
+        peak = np.abs(up).max(axis=0)[:4 * N].reshape(N, 4).max(axis=1)
+        if peak.max() <= ceiling:
+            break
+        need = maximum_filter1d(np.maximum(peak / (ceiling * 0.985), 1.0), size=2 * look + 1)
+        g = 1.0 / need
+        g = signal.lfilter([0.002], [1, -0.998], g - 1.0) + 1.0   # smooth release
+        g = np.minimum(g, 1.0 / need)                              # never less reduction than needed
+        mix *= g
+    up = signal.resample_poly(mix, 4, 1, axis=1)
+    print(f"true peak: {20 * np.log10(np.abs(up).max()):.2f} dBTP")
     return mix
 
 

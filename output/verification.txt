@@ -1,0 +1,19 @@
+== container ==
+  format     mov,mp4,m4a,3gp,3g2,mj2  size 77.6 MB  bitrate 17.25 Mb/s
+  duration   36.000 s
+== video ==
+  codec      h264 (High, level 42)
+  size       1920x1080  pix_fmt yuv420p  color bt709/bt709/bt709 tv
+  fps        r=60/1 avg=60/1  frames 2160  duration 36.000 s
+== audio ==
+  codec      aac (LC)  48000 Hz  2 ch  313 kb/s  duration 36.000 s
+== full decode == clean
+  decoded 2160 frames; first frame luma 1.16, last frame luma 0.12
+  decoded audio 36.011 s, stereo sample peak -0.94 dBFS
+  encoded audio vs master WAV: offset 0 samples (+0.00 ms)
+== sync (cut = luminance jump on the picture, onset = audio attack) ==
+  act II   expected   4.500s | picture cut at frame 270 (  4.500s) | impact (low band, 50%)   4.508s | A-V   +7.9 ms
+  act III  expected  10.500s | picture cut at frame 630 ( 10.500s) | impact (low band, 50%)  10.506s | A-V   +6.2 ms
+  act IV   expected  16.500s | picture cut at frame 990 ( 16.500s) | impact (low band, 50%)  16.525s | A-V  +25.1 ms
+  act V    expected  22.500s | picture cut at frame 1350 ( 22.500s) | impact (low band, 50%)  22.517s | A-V  +17.5 ms
+  impact   expected  29.250s | picture cut at frame 1755 ( 29.250s) | impact (low band, 50%)  29.279s | A-V  +29.0 ms

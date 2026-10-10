@@ -84,6 +84,27 @@ Principaux éléments :
   convolution générées. Le mixage est automatisé par acte selon des cibles de
   loudness EBU R128, avec un limiteur crête à anticipation (programme ≈ -16 LUFS).
 
+## Vérification du fichier livré
+
+Mesures prises par [`src/verify.py`](src/verify.py) sur le MP4 encodé lui-même
+(sortie complète dans [`output/verification.txt`](output/verification.txt)) :
+
+| Contrôle | Résultat |
+|---|---|
+| Conteneur | MP4 « faststart », 77,6 Mo, 17,25 Mb/s |
+| Vidéo | H.264 High @ L4.2, **1920 × 1080**, yuv420p, BT.709 |
+| Cadence | **60/1** i/s constante, **2 160 images** |
+| Durée | **36,000 s** (vidéo, audio et conteneur) |
+| Audio | AAC-LC 48 kHz stéréo ≈ 313 kb/s, -16,4 LUFS, crête réelle -1,1 dBTP |
+| Décodage complet | aucune erreur |
+| Synchronisation | audio encodé aligné au master WAV : décalage **0 échantillon**. Coupes image exactement aux images 270, 630, 990, 1350 et 1755. Chaque impact atteint 50 % de son amplitude grave 6 à 29 ms après la coupe, soit le temps de montée naturel d'un son grave (moins de 2 images). |
+| Couleur | écart moyen inférieur à 0,4 niveau entre l'image encodée et le rendu source |
+
+**Limite connue.** Sur les arêtes des anneaux en rotation rapide (acte IV), le
+flou de mouvement est calculé avec 7 échantillons par pixel. À 100 %, on
+perçoit donc un léger crépitement granuleux. Sur un rendu GPU, on aurait monté
+le nombre d'échantillons ; ici, le budget CPU a fixé le compromis.
+
 ## Reproduire le film
 
 ```bash
