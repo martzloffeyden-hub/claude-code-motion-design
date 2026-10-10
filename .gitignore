@@ -1,0 +1,6 @@
+output/segments/
+output/title_sdf.npy
+output/preview_lowres.mkv
+output/render_log.txt
+__pycache__/
+*.pyc
