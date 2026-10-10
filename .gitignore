@@ -4,3 +4,4 @@ output/preview_lowres.mkv
 output/render_log.txt
 __pycache__/
 *.pyc
+output/title_preview.png
