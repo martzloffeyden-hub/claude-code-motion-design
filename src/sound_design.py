@@ -163,6 +163,26 @@ def additive_saw(freq, nharm=40, bright=1.0, fmax=6000.0):
     return out
 
 
+def biquad(kind, f, gain_db, q):
+    A = 10 ** (gain_db / 40)
+    w0 = 2 * np.pi * f / SR
+    al = np.sin(w0) / (2 * q)
+    c = np.cos(w0)
+    if kind == "peak":
+        b = [1 + al * A, -2 * c, 1 - al * A]
+        a = [1 + al / A, -2 * c, 1 - al / A]
+    elif kind == "lowshelf":
+        sq = 2 * np.sqrt(A) * al
+        b = [A * ((A + 1) - (A - 1) * c + sq), 2 * A * ((A - 1) - (A + 1) * c), A * ((A + 1) - (A - 1) * c - sq)]
+        a = [(A + 1) + (A - 1) * c + sq, -2 * ((A - 1) + (A + 1) * c), (A + 1) + (A - 1) * c - sq]
+    else:  # highshelf
+        sq = 2 * np.sqrt(A) * al
+        b = [A * ((A + 1) + (A - 1) * c + sq), -2 * A * ((A - 1) + (A + 1) * c), A * ((A + 1) + (A - 1) * c - sq)]
+        a = [(A + 1) - (A - 1) * c + sq, 2 * ((A - 1) - (A + 1) * c), (A + 1) - (A - 1) * c - sq]
+    b, a = np.array(b) / a[0], np.array(a) / a[0]
+    return b, a
+
+
 def softclip(x, drive=1.0):
     return np.tanh(x * drive) / np.tanh(drive)
 
@@ -213,7 +233,9 @@ def boom(t0, size=1.0, pitch=1.0, metal=True, pan=0.0):
     sub = softclip(sub * 1.6, 1.4)
     body = bp(noise(len(t), "pink"), 45, 420, 2) * np.exp(-t / 0.13) * 1.6
     crack = hp(noise(len(t)), 2500, 2) * np.exp(-t / 0.025) * 0.35
-    snd = sub * 1.0 + body + crack
+    # mid "knock" so the impact reads on small speakers too
+    knock = bp(noise(len(t), "pink"), 140, 900, 2) * np.exp(-t / 0.07) * 1.2
+    snd = sub * 0.55 + body * 1.2 + knock + crack * 1.3
     place(snd * size, t0, pan=pan, gain=0.9, hall=0.25, cath=0.55 * size)
     if metal:
         base = 46.0 * pitch
@@ -223,7 +245,7 @@ def boom(t0, size=1.0, pitch=1.0, metal=True, pan=0.0):
             dec = (3.2 - 0.3 * i) * (0.6 + 0.4 * size)
             m += np.sin(2 * np.pi * base * r * t + RNG.uniform(0, 6.28)) * np.exp(-t / max(dec, 0.3)) / (1 + 0.45 * i)
         m *= (1 - np.exp(-t / 0.01))
-        place(m * 0.16 * size, t0, pan=pan, width=0.8, hall=0.3, cath=0.7)
+        place(m * 0.24 * size, t0, pan=pan, width=0.8, hall=0.3, cath=0.7)
 
 
 def reverse_swell(t_end, dur, lo=200, hi=6000, gain=0.5, pan=0.0):
@@ -283,7 +305,8 @@ def pulse(t0, gain=0.6, f=52.0, click_gain=0.08):
     t = tvec(0.6)
     x = np.sin(osc_phase(f + 45 * np.exp(-t / 0.035))) * np.exp(-t / 0.14) * (1 - np.exp(-t / 0.004))
     click = hp(noise(len(t)), 4000) * np.exp(-t / 0.004) * click_gain
-    place(softclip(x * 1.3) * gain + click, t0, hall=0.08)
+    knock = bp(noise(len(t)), 120, 700) * np.exp(-t / 0.03) * 0.5
+    place(softclip(x * 1.3) * gain * 0.7 + knock * gain + click, t0, hall=0.08)
 
 
 def tick(t0, gain=0.05, pan=0.0, f=5200):
@@ -330,7 +353,7 @@ def pad(notes, t0, t1, gain=0.05, attack=2.0, release=2.0, cutoff=(400, 2500), b
     fc = cutoff[0] + (cutoff[1] - cutoff[0]) * np.sin(np.pi * 0.5 * tt) ** 2
     for ch in range(2):
         out[ch] = sweep_filter(out[ch], fc, "lowpass", q=0.9)
-    out *= env * gain / np.sqrt(len(notes) * voices)
+    out *= env * gain * 1.6 / np.sqrt(len(notes) * voices)
     place(out, t0, hall=hall, cath=cath)
 
 
@@ -393,7 +416,7 @@ def roar(t0, t1, gain=0.35):
     sub = np.sin(osc_phase(36 + 6 * tt)) * 0.6 + np.sin(osc_phase(36.6 + 6 * tt)) * 0.4
     env = np.clip(t / 0.08, 0, 1) * (0.7 + 0.5 * tt ** 2)
     st = np.vstack([y, np.roll(y, 300)]) * am * env
-    st += np.vstack([sub, sub]) * env * 0.5
+    st += np.vstack([sub, sub]) * env * 0.22
     place(st * gain, t0, hall=0.25, cath=0.1)
 
 
@@ -414,10 +437,10 @@ def score():
     # ---------------------------------------------------------- ACT I --
     # the void: sub air + faint room tone
     t = tvec(TL.T_EMERGE)
-    air = lp(noise(len(t), "brown"), 120) * 0.25 + lp(noise(len(t), "pink"), 2500) * 0.012
+    air = lp(noise(len(t), "brown"), 120) * 0.10 + lp(noise(len(t), "pink"), 2500) * 0.016
     air *= np.clip(t / 2.0, 0, 1)
     place(air, 0.0, width=0.9, hall=0.2)
-    tone(0.2, TL.T_EMERGE - 0.15, 41.2, gain=0.20, attack=2.5, release=0.3, partials=(1.0, 0.25, 0.08), hall=0.1, cath=0.0)
+    tone(0.2, TL.T_EMERGE - 0.15, 41.2, gain=0.08, attack=2.5, release=0.3, partials=(1.0, 0.6, 0.4, 0.25, 0.12), hall=0.1, cath=0.0)
     # the seam ignites: glassy rising tone + electric crackle travelling
     tone(0.9, 3.7, 1318.5, gain=0.014, attack=1.6, release=0.6, partials=(1.0, 0.3), vibrato=0.002,
          bend=lambda x: -5 + 5 * np.clip((x - 0.9) / 3.0, 0, 1), pan=0.3)
@@ -432,7 +455,7 @@ def score():
     # the structure rises out of the liquid: deep groan + water
     t = tvec(6.0)
     groan = sweep_filter(noise(len(t), "brown"), 60 + 140 * (t / 6.0), "bandpass", q=4.0)
-    place(groan * np.sin(np.pi * np.clip(t / 6.0, 0, 1)) * 0.45, TL.T_EMERGE + 0.2, width=0.6, hall=0.3, cath=0.3)
+    place(groan * np.sin(np.pi * np.clip(t / 6.0, 0, 1)) * 0.30, TL.T_EMERGE + 0.2, width=0.6, hall=0.3, cath=0.3)
     t = tvec(6.0)
     water = bp(noise(len(t), "pink"), 150, 1600) * (0.5 + 0.5 * np.sin(2 * np.pi * 0.35 * t) ** 2) * 0.03
     place(water * np.clip(t / 1.0, 0, 1) * np.clip((6.0 - t) / 0.5, 0, 1), TL.T_EMERGE, width=0.9, hall=0.3)
@@ -481,7 +504,8 @@ def score():
     redshift = lambda x: -7.0 * np.clip((x - TL.T_DISTORT) / (TL.T_COLLAPSE - TL.T_DISTORT), 0, 1) ** 1.3
     pad([38, 45, 50, 53, 57], TL.T_DISTORT, TL.T_COLLAPSE, gain=0.075, attack=0.8, release=0.25,
         cutoff=(1600, 400), bend=redshift, cath=0.5)
-    tone(TL.T_DISTORT, 6.0, 27.5, gain=0.22, attack=1.5, release=0.1, partials=(1.0, 0.5, 0.2), hall=0.0, cath=0.0)
+    tone(TL.T_DISTORT, 6.0, 36.7, gain=0.07, attack=1.5, release=0.1, partials=(1.0, 0.7, 0.45, 0.3, 0.2), hall=0.0, cath=0.0,
+         bend=redshift)
     # the spinning rings: Doppler whooshes accelerating
     tw = TL.T_DISTORT + 0.6
     k = 0
@@ -595,8 +619,13 @@ def master():
     # post elements follow the gain of the final impact section
     mix += post * gcurve[s2i(TL.T_IMPACT + 0.5)]
     # subsonic clean-up and a touch of air
+    # mastering EQ: tame the sub, open the mids and add air (RBJ biquads)
+    eq = [biquad("lowshelf", 70, -6.0, 0.7), biquad("peak", 900, 3.0, 0.6),
+          biquad("highshelf", 4000, 3.5, 0.7)]
     for ch in range(2):
-        mix[ch] = hp(mix[ch], 24, 2)
+        mix[ch] = hp(mix[ch], 28, 4)
+        for b, a in eq:
+            mix[ch] = signal.lfilter(b, a, mix[ch])
     # final fade so the reverb tail ends with the picture
     mix *= np.clip((TL.T_END - t) / 0.35, 0, 1) ** 1.5
     mix *= np.clip(t / 0.05, 0, 1)
